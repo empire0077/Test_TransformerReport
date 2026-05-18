@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบรายงานผลการตรวจสอบหม้อแปลงไฟฟ้า</title>
+    <!-- นำเข้า Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- นำเข้า Font Awesome สำหรับไอคอน -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- นำเข้าฟอนต์ Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#0ea5e9', // สียศหลัก
+                        secondary: '#f1f5f9',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            /* เพิ่มลวดลายพื้นหลังเล็กน้อย */
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        /* สไตล์สำหรับกล่องข้อความแจ้งเตือน (Toast) */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 50;
+            left: 50%;
+            bottom: 30px;
+            font-size: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: visibility 0s, opacity 0.5s linear, bottom 0.5s ease-in-out;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .toast.success { background-color: #10b981; }
+        .toast.error { background-color: #ef4444; }
+        
+        /* สไตล์สำหรับตัวโหลด (Spinner) */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body class="text-gray-800 antialiased min-h-screen flex flex-col justify-center py-10">
+    <div class="max-w-lg w-full mx-auto px-4">
+        
+        <!-- ส่วนหัว -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
+                <i class="fa-solid fa-bolt text-3xl"></i>
+            </div>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900">รายงานตรวจสอบหม้อแปลง</h1>
+            <p class="text-gray-500 mt-2">กรุณากรอกข้อมูลและแนบรูปถ่ายหน้างาน</p>
+        </div>
+
+        <!-- การ์ดฟอร์ม -->
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+            <div class="h-2 bg-primary w-full"></div>
+            
+            <form id="inspectionForm" class="p-6 md:p-8 space-y-6">
+                
+                <!-- หมายเลขหม้อแปลง -->
+                <div>
+                    <label for="transformerId" class="block text-sm font-medium text-gray-700 mb-1">
+                        หมายเลขหม้อแปลง <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-hashtag text-gray-400"></i>
+                        </div>
+                        <input type="text" id="transformerId" name="transformerId" required
+                            class="pl-10 w-full rounded-lg border-gray-300 border py-2.5 px-3 text-gray-700 shadow-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                            placeholder="เช่น TR-10254">
+                    </div>
+                </div>
+
+                <!-- ผลการตรวจสอบ -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        ผลการตรวจสอบ <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="status" value="ปกติ" class="peer sr-only" required>
+                            <div class="rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50 peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:ring-1 peer-checked:ring-green-500 transition-all flex items-center justify-center gap-2 text-gray-600 peer-checked:text-green-700 font-medium">
+                                <i class="fa-solid fa-circle-check"></i> ปกติ
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="status" value="ชำรุด/ต้องแก้ไข" class="peer sr-only">
+                            <div class="rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50 peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:ring-1 peer-checked:ring-red-500 transition-all flex items-center justify-center gap-2 text-gray-600 peer-checked:text-red-700 font-medium">
+                                <i class="fa-solid fa-triangle-exclamation"></i> ชำรุด/แก้ไข
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- พิกัดตำแหน่ง (GPS) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        พิกัดตำแหน่ง (GPS) <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-location-dot text-gray-400"></i>
+                            </div>
+                            <input type="text" id="locationStr" readonly required
+                                class="pl-10 w-full rounded-lg border-gray-200 border py-2.5 px-3 text-gray-500 bg-gray-50 shadow-sm cursor-not-allowed text-sm"
+                                placeholder="กดปุ่มเพื่อดึงพิกัด...">
+                        </div>
+                        <button type="button" id="btnLocation" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg px-4 py-2 font-medium transition-colors flex items-center gap-2 whitespace-nowrap">
+                            <i class="fa-solid fa-crosshairs"></i> ดึงพิกัด
+                        </button>
+                    </div>
+                    
+                    <!-- ส่วนสำรองกรณีดึงพิกัดไม่ได้ (เช่น ติดข้อจำกัดของ iframe/preview) -->
+                    <div id="manualLocationDiv" class="hidden mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm">
+                        <p class="text-blue-800 mb-2"><i class="fa-solid fa-circle-info"></i> หากไม่สามารถดึงพิกัดอัตโนมัติได้ (อาจติดข้อจำกัดของระบบ Preview) คุณสามารถใช้พิกัดจำลองเพื่อทดสอบได้</p>
+                        <button type="button" id="btnMockLocation" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                            <i class="fa-solid fa-map-pin"></i> ใช้พิกัดจำลอง (สำหรับการทดสอบ)
+                        </button>
+                    </div>
+
+                    <p id="locationError" class="text-red-500 text-xs mt-1 hidden"></p>
+                    <!-- ซ่อน input ไว้เก็บค่าแยกเพื่อส่งไป App Script -->
+                    <input type="hidden" id="lat" name="lat">
+                    <input type="hidden" id="lng" name="lng">
+                </div>
+
+                <!-- รูปถ่ายหน้างาน -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        รูปถ่ายหน้างาน <span class="text-red-500">*</span>
+                    </label>
+                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-primary transition-colors bg-gray-50 relative group cursor-pointer" id="dropzone">
+                        <div class="space-y-1 text-center" id="uploadPrompt">
+                            <i class="fa-solid fa-camera text-4xl text-gray-400 group-hover:text-primary transition-colors"></i>
+                            <div class="flex text-sm text-gray-600 justify-center mt-2">
+                                <label for="photo" class="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary/80 focus-within:outline-none">
+                                    <span>อัปโหลดรูปภาพ</span>
+                                    <input id="photo" name="photo" type="file" accept="image/*" class="sr-only" required>
+                                </label>
+                                <p class="pl-1">หรือถ่ายรูป</p>
+                            </div>
+                            <p class="text-xs text-gray-500">
+                                PNG, JPG ไม่เกิน 5MB
+                            </p>
+                        </div>
+                        
+                        <!-- พรีวิวรูปภาพ -->
+                        <div id="imagePreviewContainer" class="hidden w-full relative">
+                            <img id="imagePreview" src="" alt="Preview" class="max-h-48 mx-auto rounded-lg shadow-sm object-contain">
+                            <button type="button" id="btnRemoveImage" class="absolute top-0 right-0 -mt-2 -mr-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 focus:outline-none">
+                                <i class="fa-solid fa-times text-xs"></i>
+                            </button>
+                        </div>
+                        <!-- ซ่อนข้อมูล base64 ไว้ส่ง -->
+                        <input type="hidden" id="photoBase64" name="photoBase64">
+                        <input type="hidden" id="photoMimeType" name="photoMimeType">
+                        <input type="hidden" id="photoName" name="photoName">
+                    </div>
+                </div>
+
+                <!-- รายละเอียดเพิ่มเติม -->
+                <div>
+                    <label for="remarks" class="block text-sm font-medium text-gray-700 mb-1">
+                        รายละเอียดเพิ่มเติม (ถ้ามี)
+                    </label>
+                    <textarea id="remarks" name="remarks" rows="3" 
+                        class="w-full rounded-lg border-gray-300 border py-2.5 px-3 text-gray-700 shadow-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                        placeholder="ระบุความเสียหาย หรือการดำเนินการที่ทำไปแล้ว..."></textarea>
+                </div>
+
+                <!-- ปุ่มส่งข้อมูล -->
+                <button type="submit" id="btnSubmit" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+                    <span>บันทึกข้อมูล</span>
+                </button>
+            </form>
+        </div>
+        
+        <div class="text-center mt-6 text-sm text-gray-500">
+            <p>&copy; 2026 ระบบตรวจสอบบำรุงรักษา</p>
+        </div>
+    </div>
+
+    <!-- Toast แจ้งเตือน -->
+    <div id="toast" class="toast">
+        <i id="toastIcon" class="mr-2"></i> <span id="toastMsg">ข้อความ</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // ตั้งค่า Google Apps Script Web App URL ที่นี่
+        // ==========================================
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAWCxsn9w4Xj0iyTLamyh_8F6HH6hO-WywGj42_7WbJMuHLHsGNku684mIemSpqk_Y/exec'; 
+        // หมายเหตุ: โปรดนำ URL ที่ได้จากการ Deploy App Script มาใส่แทนค่าด้านบน
+
+        // DOM Elements
+        const form = document.getElementById('inspectionForm');
+        const btnLocation = document.getElementById('btnLocation');
+        const locationStr = document.getElementById('locationStr');
+        const latInput = document.getElementById('lat');
+        const lngInput = document.getElementById('lng');
+        const locationError = document.getElementById('locationError');
+        const manualLocationDiv = document.getElementById('manualLocationDiv');
+        const btnMockLocation = document.getElementById('btnMockLocation');
+        
+        const photoInput = document.getElementById('photo');
+        const dropzone = document.getElementById('dropzone');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const btnRemoveImage = document.getElementById('btnRemoveImage');
+        
+        const photoBase64Input = document.getElementById('photoBase64');
+        const photoMimeTypeInput = document.getElementById('photoMimeType');
+        const photoNameInput = document.getElementById('photoName');
+        
+        const btnSubmit = document.getElementById('btnSubmit');
+
+        // --- 1. จัดการเรื่องพิกัด GPS ---
+        btnLocation.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showErrorLocation("เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง");
+                manualLocationDiv.classList.remove('hidden');
+                return;
+            }
+
+            locationStr.value = "กำลังค้นหาพิกัด...";
+            locationError.classList.add('hidden');
+            manualLocationDiv.classList.add('hidden');
+            
+            // เปลี่ยนไอคอนปุ่มเป็น loading
+            const originalBtnHtml = btnLocation.innerHTML;
+            btnLocation.innerHTML = '<div class="loader" style="width:14px;height:14px;border-width:2px;border-top-color:#6b7280;border-left-color:#6b7280;border-bottom-color:#6b7280;"></div> กำลังดึง...';
+            btnLocation.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    latInput.value = lat;
+                    lngInput.value = lng;
+                    locationStr.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    
+                    // คืนค่าปุ่ม
+                    btnLocation.innerHTML = '<i class="fa-solid fa-check text-green-500"></i> ดึงสำเร็จ';
+                    setTimeout(() => {
+                        btnLocation.innerHTML = originalBtnHtml;
+                        btnLocation.disabled = false;
+                    }, 2000);
+                },
+                (error) => {
+                    btnLocation.innerHTML = originalBtnHtml;
+                    btnLocation.disabled = false;
+                    locationStr.value = "";
+                    manualLocationDiv.classList.remove('hidden'); // แสดงปุ่มจำลองพิกัดเมื่อเกิด Error
+                    
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            showErrorLocation("ผู้ใช้ปฏิเสธการเข้าถึงตำแหน่ง หรือติดข้อจำกัดของหน้าต่าง Preview");
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            showErrorLocation("ข้อมูลตำแหน่งไม่พร้อมใช้งาน หรือสัญญาณ GPS อ่อน");
+                            break;
+                        case error.TIMEOUT:
+                            showErrorLocation("หมดเวลาในการขอตำแหน่ง");
+                            break;
+                        default:
+                            showErrorLocation("เกิดข้อผิดพลาดในการดึงตำแหน่ง");
+                            break;
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        });
+
+        // ฟังก์ชันจำลองพิกัดสำหรับกดทดสอบ
+        btnMockLocation.addEventListener('click', () => {
+            const mockLat = 13.756331; // พิกัดตัวอย่าง กทม.
+            const mockLng = 100.501765;
+            latInput.value = mockLat;
+            lngInput.value = mockLng;
+            locationStr.value = `${mockLat}, ${mockLng} (พิกัดจำลอง)`;
+            
+            locationError.classList.add('hidden');
+            manualLocationDiv.classList.add('hidden');
+            showToast('ใช้พิกัดจำลองสำเร็จ', 'success');
+        });
+
+        function showErrorLocation(msg) {
+            locationError.textContent = msg;
+            locationError.classList.remove('hidden');
+        }
+
+        // --- 2. จัดการรูปภาพ (แปลงเป็น Base64 เพื่อส่ง) ---
+        photoInput.addEventListener('change', function(e) {
+            handleFiles(this.files);
+        });
+
+        // รองรับการคลิกที่กล่องเพื่อเลือกไฟล์
+        dropzone.addEventListener('click', (e) => {
+            if(e.target !== btnRemoveImage && e.target !== btnRemoveImage.querySelector('i')) {
+                photoInput.click();
+            }
+        });
+
+        function handleFiles(files) {
+            if (files && files[0]) {
+                const file = files[0];
+                
+                // ตรวจสอบขนาด (จำกัด 5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    showToast('รูปภาพต้องมีขนาดไม่เกิน 5MB', 'error');
+                    photoInput.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    // แสดงพรีวิว
+                    imagePreview.src = e.target.result;
+                    uploadPrompt.classList.add('hidden');
+                    imagePreviewContainer.classList.remove('hidden');
+                    imagePreviewContainer.classList.add('block');
+                    
+                    // เก็บข้อมูล Base64 และอื่นๆ สำหรับส่ง
+                    // FileReader จะได้ format: data:image/jpeg;base64,....
+                    const base64String = e.target.result.split(',')[1];
+                    const mimeType = e.target.result.split(';')[0].split(':')[1];
+                    
+                    photoBase64Input.value = base64String;
+                    photoMimeTypeInput.value = mimeType;
+                    photoNameInput.value = file.name;
+                }
+                
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // ลบรูปภาพที่เลือก
+        btnRemoveImage.addEventListener('click', (e) => {
+            e.stopPropagation(); // ป้องกันการ trigger click ของ dropzone
+            photoInput.value = '';
+            photoBase64Input.value = '';
+            photoMimeTypeInput.value = '';
+            photoNameInput.value = '';
+            
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
+            imagePreviewContainer.classList.remove('block');
+            uploadPrompt.classList.remove('hidden');
+        });
+
+        // --- 3. จัดการการ Submit Form ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // ตรวจสอบว่าดึงพิกัดแล้วหรือยัง
+            if (!latInput.value || !lngInput.value) {
+                showToast('กรุณาดึงพิกัดตำแหน่งก่อน', 'error');
+                return;
+            }
+
+            // ตรวจสอบรูปภาพ
+            if (!photoBase64Input.value) {
+                showToast('กรุณาแนบรูปถ่ายหน้างาน', 'error');
+                return;
+            }
+
+            // เตรียมข้อมูล
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // ป้องกันปุ่มกดซ้ำ
+            const originalBtnHtml = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<span class="loader"></span> กำลังบันทึกข้อมูล...';
+            btnSubmit.disabled = true;
+            btnSubmit.classList.replace('bg-primary', 'bg-gray-400');
+            btnSubmit.classList.replace('hover:bg-blue-600', 'hover:bg-gray-500');
+
+            // ส่งข้อมูลไปยัง Google Apps Script (ส่งผ่าน POST)
+            // หมายเหตุ: ต้องตั้งค่า Web App ให้รองรับ POST (doPost) หรือใช้ GET (doGet) ตามการตั้งค่า
+            // ในที่นี้เราจะส่งเป็น URLSearchParams ให้ Apps script จัดการง่ายๆ 
+            // หรือส่งเป็น JSON ก็ได้ขึ้นอยู่กับโค้ด App script
+            
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                // ส่งแบบ urlencoded เพื่อหลีกเลี่ยงปัญหา CORS preflight ในบางกรณี
+                // หาก Apps script รับ JSON ให้เปลี่ยน Content-Type และ body เป็น JSON.stringify(data)
+                body: new URLSearchParams(data) 
+            })
+            .then(response => {
+                if(!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // สมมติว่า App Script คืนค่าเป็น JSON { status: "success" }
+            })
+            .then(result => {
+                // หากไม่มีการตอบกลับเป็น JSON ที่ชัดเจน อาจจะเช็คแบบนี้แทน (ขึ้นอยู่กับฝั่ง GAS)
+                showToast('บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
+                
+                // รีเซ็ตฟอร์ม
+                form.reset();
+                btnRemoveImage.click(); // รีเซ็ตรูปภาพ
+                latInput.value = '';
+                lngInput.value = '';
+                
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // ในกรณี CORS error จาก Apps Script แบบ No-CORS มันอาจจะเข้า catch แม้จะสำเร็จ
+                // ดังนั้นในทางปฏิบัติ อาจจะต้องเขียน Apps Script ให้รองรับ JSONP หรือตั้งค่า CORS ให้ดี
+                
+                // เพื่อการทดสอบ UI สมมติว่าสำเร็จ
+                // showToast('เกิดข้อผิดพลาดในการบันทึก: ' + error.message, 'error');
+                
+                // ถ้ายังไม่ได้ใส่ URL จริง มันจะ error แน่นอน เราจะโชว์แจ้งเตือนให้ไปใส่ URL
+                if(SCRIPT_URL.includes('XXXXXXXXX')) {
+                    showToast('โปรดแก้ไข SCRIPT_URL ในโค้ดก่อนใช้งานจริง', 'error');
+                } else {
+                    showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
+                }
+            })
+            .finally(() => {
+                // คืนค่าปุ่มกลับมา
+                btnSubmit.innerHTML = originalBtnHtml;
+                btnSubmit.disabled = false;
+                btnSubmit.classList.replace('bg-gray-400', 'bg-primary');
+                btnSubmit.classList.replace('hover:bg-gray-500', 'hover:bg-blue-600');
+            });
+        });
+
+        // --- 4. ฟังก์ชันแสดง Toast แจ้งเตือน ---
+        function showToast(message, type) {
+            const toast = document.getElementById("toast");
+            const toastIcon = document.getElementById("toastIcon");
+            const toastMsg = document.getElementById("toastMsg");
+            
+            toastMsg.textContent = message;
+            toast.className = "toast show"; // รีเซ็ตคลาสก่อน
+            
+            if (type === 'success') {
+                toast.classList.add('success');
+                toastIcon.className = "fa-solid fa-circle-check";
+            } else {
+                toast.classList.add('error');
+                toastIcon.className = "fa-solid fa-circle-exclamation";
+            }
+
+            // ซ่อนอัตโนมัติ
+            setTimeout(function(){ 
+                toast.classList.remove("show"); 
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
